@@ -17,6 +17,8 @@
 #include <json-glib/json-glib.h>
 
 #include <string.h>
+#include <time.h>
+#include <stdio.h>
 
 enum AppState
 {
@@ -280,10 +282,24 @@ on_offer_created (GstPromise * promise, gpointer user_data)
   gst_webrtc_session_description_free (offer);
 }
 
+static gboolean
+setup_call (void);
 static void
 on_negotiation_needed (GstElement * element, gpointer user_data)
 {
   g_print("In on_negotiation_needed\n");
+  if (!setup_call ()) {
+  	g_print("setp_call failed\n");
+      /*cleanup_and_quit_loop ("ERROR: Failed to setup call", PEER_CALL_ERROR);
+      goto out;*/
+    }
+  while(app_state == PEER_CONNECTING) {
+	  sleep(1);
+	  //clock_t start_time = clock();
+	  //while (clock() < start_time + 100)
+	 // 	;
+  }
+
   app_state = PEER_CALL_NEGOTIATING;
 
   if (remote_is_offerer) {
@@ -390,8 +406,11 @@ start_pipeline (void)
   pipe1 =
       gst_parse_launch ("webrtcbin bundle-policy=max-bundle name=sendrecv "
       STUN_SERVER
-      "videotestsrc ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 ! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
+      "v4l2src ! nvvideoconvert ! nvstreammux0.sink_0 nvstreammux batch-size=1 width=1280 height=720 ! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
+#if 0
+      "v4l2src ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 " /*! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt*/ "! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
       /*"videotestsrc ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "*/
+#endif
       "queue ! " RTP_CAPS_VP8 "96 ! sendrecv. ", &error);
 
 
@@ -584,12 +603,16 @@ on_server_message (SoupWebsocketConnection * conn, SoupWebsocketDataType type,
     app_state = SERVER_REGISTERED;
     g_print ("Registered with server\n");
     /* Ask signalling server to connect us with a specific peer */
-    if (!setup_call ()) {
+    /*if (!setup_call ()) {
       cleanup_and_quit_loop ("ERROR: Failed to setup call", PEER_CALL_ERROR);
       goto out;
-    }
+    }*/
+    if (!start_pipeline ())
+      cleanup_and_quit_loop ("ERROR: failed to start pipeline",
+          PEER_CALL_ERROR);
     /* Call has been setup by the server, now we can start negotiation */
   } else if (g_strcmp0 (text, "SESSION_OK") == 0) {
+    g_print ("Call has been setup\n");
     if (app_state != PEER_CONNECTING) {
       cleanup_and_quit_loop ("ERROR: Received SESSION_OK when not calling",
           PEER_CONNECTION_ERROR);
@@ -598,9 +621,9 @@ on_server_message (SoupWebsocketConnection * conn, SoupWebsocketDataType type,
 
     app_state = PEER_CONNECTED;
     /* Start negotiation (exchange SDP and ICE candidates) */
-    if (!start_pipeline ())
+    /*if (!start_pipeline ())
       cleanup_and_quit_loop ("ERROR: failed to start pipeline",
-          PEER_CALL_ERROR);
+          PEER_CALL_ERROR);*/
     /* Handle errors */
   } else if (g_str_has_prefix (text, "ERROR")) {
     switch (app_state) {
