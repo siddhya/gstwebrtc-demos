@@ -258,6 +258,7 @@ send_sdp_to_peer (GstWebRTCSessionDescription * desc)
 static void
 on_offer_created (GstPromise * promise, gpointer user_data)
 {
+  g_print("In on_offer_created\n");
   GstWebRTCSessionDescription *offer = NULL;
   const GstStructure *reply;
 
@@ -282,6 +283,7 @@ on_offer_created (GstPromise * promise, gpointer user_data)
 static void
 on_negotiation_needed (GstElement * element, gpointer user_data)
 {
+  g_print("In on_negotiation_needed\n");
   app_state = PEER_CALL_NEGOTIATING;
 
   if (remote_is_offerer) {
@@ -371,19 +373,27 @@ on_ice_gathering_state_notify (GstElement * webrtcbin, GParamSpec * pspec,
   g_print ("ICE gathering state changed to %s\n", new_state);
 }
 
+#define CAPA "video/x-raw, framerate=30/1, format=YUY2, width=1280, height=720"
+#define CAPB "video/x-raw,format=NV12,width=1280,height=720"
+#define CAPC "video/x-raw(memory:NVMM),format=RGBA,width=1280,height=720"
 static gboolean
 start_pipeline (void)
 {
   GstStateChangeReturn ret;
   GError *error = NULL;
 
+/*  pipe1 =
+      gst_parse_launch ("webrtcbin bundle-policy=max-bundle name=sendrecv "
+      STUN_SERVER
+      "v4l2src ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
+      "queue ! " RTP_CAPS_VP8 "96 ! sendrecv. ", &error);*/
   pipe1 =
       gst_parse_launch ("webrtcbin bundle-policy=max-bundle name=sendrecv "
       STUN_SERVER
-      "videotestsrc is-live=true pattern=ball ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
-      "queue ! " RTP_CAPS_VP8 "96 ! sendrecv. "
-      "audiotestsrc is-live=true wave=red-noise ! audioconvert ! audioresample ! queue ! opusenc ! rtpopuspay ! "
-      "queue ! " RTP_CAPS_OPUS "97 ! sendrecv. ", &error);
+      "videotestsrc ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 ! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
+      /*"videotestsrc ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "*/
+      "queue ! " RTP_CAPS_VP8 "96 ! sendrecv. ", &error);
+
 
   if (error) {
     g_printerr ("Failed to parse launch: %s\n", error->message);

@@ -54,6 +54,7 @@ class WebRTCClient:
     def on_offer_created(self, promise, _, __):
         promise.wait()
         reply = promise.get_reply()
+        print ('Sending reply:\n%s' % vars(reply))
         offer = reply['offer']
         promise = Gst.Promise.new()
         self.webrtc.emit('set-local-description', offer, promise)
