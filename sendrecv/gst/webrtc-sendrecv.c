@@ -391,7 +391,8 @@ on_ice_gathering_state_notify (GstElement * webrtcbin, GParamSpec * pspec,
 
 #define CAPA "video/x-raw, framerate=30/1, format=YUY2, width=1280, height=720"
 #define CAPB "video/x-raw,format=NV12,width=1280,height=720"
-#define CAPC "video/x-raw(memory:NVMM),format=RGBA,width=1280,height=720"
+#define CAPC "video/x-raw(memory:NVMM),format=RGBA,width=1281,height=720"
+#define CAP "video/x-raw, framerate=10/1, width=640, height=480"
 static gboolean
 start_pipeline (void)
 {
@@ -406,7 +407,7 @@ start_pipeline (void)
   pipe1 =
       gst_parse_launch ("webrtcbin bundle-policy=max-bundle name=sendrecv "
       STUN_SERVER
-      "v4l2src ! nvvideoconvert ! nvstreammux0.sink_0 nvstreammux batch-size=1 width=1280 height=720 ! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
+      "v4l2src ! "CAP" ! nvvideoconvert ! nvstreammux0.sink_0 nvstreammux batch-size=1 width=640 height=480 ! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvdsosd ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
 #if 0
       "v4l2src ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 " /*! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt*/ "! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
       /*"videotestsrc ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "*/
