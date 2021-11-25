@@ -48,6 +48,7 @@ static GObject *send_channel, *receive_channel;
 static SoupWebsocketConnection *ws_conn = NULL;
 static enum AppState app_state = 0;
 static const gchar *peer_id = NULL;
+static const gchar *video_dev = "/dev/video0";
 static const gchar *server_url = "wss://webrtc.nirbheek.in:8443";
 static gboolean disable_ssl = FALSE;
 static gboolean remote_is_offerer = FALSE;
@@ -60,6 +61,7 @@ static GOptionEntry entries[] = {
   {"disable-ssl", 0, 0, G_OPTION_ARG_NONE, &disable_ssl, "Disable ssl", NULL},
   {"remote-offerer", 0, 0, G_OPTION_ARG_NONE, &remote_is_offerer,
       "Request that the peer generate the offer and we'll answer", NULL},
+  {"video-dev", 0, 0, G_OPTION_ARG_STRING, &video_dev, "Video source", "VDEV"},
   {NULL},
 };
 
@@ -389,9 +391,6 @@ on_ice_gathering_state_notify (GstElement * webrtcbin, GParamSpec * pspec,
   g_print ("ICE gathering state changed to %s\n", new_state);
 }
 
-#define CAPA "video/x-raw, framerate=30/1, format=YUY2, width=1280, height=720"
-#define CAPB "video/x-raw,format=NV12,width=1280,height=720"
-#define CAPC "video/x-raw(memory:NVMM),format=RGBA,width=1281,height=720"
 #define CAP "video/x-raw, framerate=10/1, width=640, height=480"
 static gboolean
 start_pipeline (void)
@@ -399,20 +398,16 @@ start_pipeline (void)
   GstStateChangeReturn ret;
   GError *error = NULL;
 
-/*  pipe1 =
-      gst_parse_launch ("webrtcbin bundle-policy=max-bundle name=sendrecv "
-      STUN_SERVER
-      "v4l2src ! videoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
-      "queue ! " RTP_CAPS_VP8 "96 ! sendrecv. ", &error);*/
-  pipe1 =
-      gst_parse_launch ("webrtcbin bundle-policy=max-bundle name=sendrecv "
-      STUN_SERVER
-      "v4l2src ! "CAP" ! nvvideoconvert ! nvstreammux0.sink_0 nvstreammux batch-size=1 width=640 height=480 ! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvdsosd ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
-#if 0
-      "v4l2src ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 " /*! nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt*/ "! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "
-      /*"videotestsrc ! " CAPA " ! videoconvert ! " CAPB " ! nvvideoconvert ! " CAPC " ! mux.sink_0 nvstreammux name=mux width=1280 height=720 batch-size=1 ! nvvideoconvert ! queue ! vp8enc deadline=1 ! rtpvp8pay ! "*/
-#endif
-      "queue ! " RTP_CAPS_VP8 "96 ! sendrecv. ", &error);
+  char buf[1024];
+  sprintf(buf, "webrtcbin bundle-policy=max-bundle name=sendrecv "
+		      STUN_SERVER
+		      "v4l2src device=%s ! "CAP" ! nvvideoconvert !"
+		      " nvstreammux0.sink_0 nvstreammux batch-size=1 width=640 height=480 !"
+		      " nvinfer config-file-path = config_infer_primary_yoloV3_tiny.txt ! nvdsosd ! nvvideoconvert ! queue !"
+		      " vp8enc deadline=1 ! rtpvp8pay ! queue ! " RTP_CAPS_VP8 "96 ! sendrecv. ", video_dev);
+  g_print ("gstreamer pipeline: %s\n", buf);
+
+  pipe1 = gst_parse_launch (buf, &error);
 
 
   if (error) {
